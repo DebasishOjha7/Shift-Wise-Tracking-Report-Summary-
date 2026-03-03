@@ -10,112 +10,94 @@
 
 <style>
 body{
-    font-family: 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg,#1e3c72,#2a5298);
-    min-height:100vh;
+    font-family: Calibri, Arial, sans-serif;
+    background:white;
     margin:0;
     padding:20px;
+    color:black;
+}
+
+.sheet{
+    max-width:900px;
+    margin:auto;
 }
 
 .header{
-    background:white;
-    padding:15px;
-    border-radius:12px;
     text-align:center;
-    box-shadow:0 4px 12px rgba(0,0,0,0.2);
-    margin-bottom:20px;
-}
-
-.header h1{
-    margin:0;
-    color:#1e3c72;
+    font-weight:bold;
+    font-size:18px;
+    background:#1f4e79; /* Cool Professional Blue */
+    color:white;
+    padding:8px;
+    border:1px solid #1f4e79;
+    letter-spacing:0.5px;
 }
 
 .sub-info{
-    margin-top:5px;
-    font-weight:600;
-    color:#555;
+    text-align:center;
+    margin-top:6px;
+    font-size:14px;
 }
 
 .controls{
-    margin-bottom:20px;
+    margin:15px 0;
 }
 
 button{
-    padding:8px 15px;
-    background:#1e3c72;
-    color:white;
-    border:none;
-    border-radius:6px;
+    padding:5px 12px;
+    font-size:13px;
     cursor:pointer;
 }
 
-button:hover{
-    background:#16305d;
+.date-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-bottom:20px;
 }
 
-.grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
-    gap:20px;
-}
-
-.date-box{
-    background:white;
-    border-radius:14px;
-    padding:15px;
-    box-shadow:0 6px 15px rgba(0,0,0,0.2);
+.date-table td{
+    border:1px solid black;
+    padding:6px;
+    font-size:14px;
 }
 
 .date-title{
     font-weight:bold;
-    font-size:16px;
-    color:#1e3c72;
-    border-bottom:2px solid #eee;
-    padding-bottom:6px;
-    margin-bottom:8px;
+    background:#e9eff5;
 }
 
 .total{
     font-weight:bold;
-    margin-bottom:8px;
-}
-
-.line{
-    padding:4px 0;
-    font-size:14px;
 }
 
 .breakdown{
-    background:#ffe5e5;
-    color:#c40000;
+    background:#ffcccc;
     font-weight:bold;
-    padding:4px;
-    border-radius:6px;
 }
 </style>
 </head>
 <body>
 
-<div id="reportArea">
+<div class="sheet" id="reportArea">
 
 <div class="header">
-    <h1>SHIFT WISE TRACKING REPORT SUMMARY</h1>
-    <div class="sub-info" id="currentInfo"></div>
+SHIFT WISE TRACKING REPORT SUMMARY
 </div>
+
+<div class="sub-info" id="currentInfo"></div>
 
 <div class="controls" id="controlPanel">
     <input type="file" id="fileInput" accept=".xlsx,.xls">
     <button onclick="downloadJPG()">Save as JPG</button>
 </div>
 
-<div class="grid" id="output"></div>
+<div id="output"></div>
 
 </div>
 
 <script>
 
-// AUTO DATE + SHIFT
+// SHIFT AUTO DETECT
 function getShift(){
     let hour = new Date().getHours();
     if(hour >= 6 && hour < 14) return "A";
@@ -128,7 +110,7 @@ function formatDate(date){
 }
 
 document.getElementById("currentInfo").innerHTML =
-    `Date: ${formatDate(new Date())} | Shift: ${getShift()}`;
+    "Date: " + formatDate(new Date()) + " | Shift: " + getShift();
 
 
 // FILE READ
@@ -183,42 +165,57 @@ function generateReport(data){
             remarksCount[remarks] = (remarksCount[remarks] || 0) + 1;
         });
 
-        let box = document.createElement("div");
-        box.className = "date-box";
+        let table = document.createElement("table");
+        table.className = "date-table";
 
-        let remarksLines = Object.entries(remarksCount)
-            .sort((a,b)=>b[1]-a[1])
-            .map(([remark,count])=>{
-                if(remark.toUpperCase().includes("BREAKDOWN")){
-                    return `<div class="line breakdown">${remark} - ${count}</div>`;
-                }
-                return `<div class="line">${remark} - ${count}</div>`;
-            })
-            .join("");
-
-        box.innerHTML = `
-            <div class="date-title">Trip Date - ${date}</div>
-            <div class="total">TOTAL TRANSIT - ${rows.length}</div>
-            ${remarksLines}
+        let rowsHTML = `
+            <tr class="date-title">
+                <td colspan="2">Trip Date - ${date}</td>
+            </tr>
+            <tr>
+                <td class="total" colspan="2">TOTAL TRANSIT - ${rows.length}</td>
+            </tr>
         `;
 
-        output.appendChild(box);
+        Object.entries(remarksCount)
+            .sort((a,b)=>b[1]-a[1])
+            .forEach(([remark,count])=>{
+
+                if(remark.toUpperCase().includes("BREAKDOWN")){
+                    rowsHTML += `<tr class="breakdown">
+                                    <td>${remark}</td>
+                                    <td>${count}</td>
+                                 </tr>`;
+                } else {
+                    rowsHTML += `<tr>
+                                    <td>${remark}</td>
+                                    <td>${count}</td>
+                                 </tr>`;
+                }
+            });
+
+        table.innerHTML = rowsHTML;
+        output.appendChild(table);
     });
 }
 
 
-// EXPORT JPG (Exact Same View)
+// EXPORT JPG (NO BLANK SPACE)
 function downloadJPG(){
 
     let controls = document.getElementById("controlPanel");
     controls.style.display = "none";
 
-    html2canvas(document.body, {
+    let report = document.getElementById("reportArea");
+    let output = document.getElementById("output");
+
+    let height = output.scrollHeight + 130;
+
+    html2canvas(report, {
         scale:3,
-        useCORS:true,
-        backgroundColor:null,
-        scrollX:0,
-        scrollY:0
+        backgroundColor:"#ffffff",
+        height: height,
+        windowHeight: height
     }).then(canvas=>{
 
         let link = document.createElement("a");
