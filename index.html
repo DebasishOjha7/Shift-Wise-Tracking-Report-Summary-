@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHIFT WISE TRACKING REPORT SUMMARY</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+body{
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg,#1e3c72,#2a5298);
+    min-height:100vh;
+    margin:0;
+    padding:20px;
+}
+
+.header{
+    background:white;
+    padding:15px;
+    border-radius:12px;
+    text-align:center;
+    box-shadow:0 4px 12px rgba(0,0,0,0.2);
+    margin-bottom:20px;
+}
+
+.header h1{
+    margin:0;
+    color:#1e3c72;
+}
+
+.sub-info{
+    margin-top:5px;
+    font-weight:600;
+    color:#555;
+}
+
+.controls{
+    margin-bottom:20px;
+}
+
+button{
+    padding:8px 15px;
+    background:#1e3c72;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#16305d;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+    gap:20px;
+}
+
+.date-box{
+    background:white;
+    border-radius:14px;
+    padding:15px;
+    box-shadow:0 6px 15px rgba(0,0,0,0.2);
+}
+
+.date-title{
+    font-weight:bold;
+    font-size:16px;
+    color:#1e3c72;
+    border-bottom:2px solid #eee;
+    padding-bottom:6px;
+    margin-bottom:8px;
+}
+
+.total{
+    font-weight:bold;
+    margin-bottom:8px;
+}
+
+.line{
+    padding:4px 0;
+    font-size:14px;
+}
+
+.breakdown{
+    background:#ffe5e5;
+    color:#c40000;
+    font-weight:bold;
+    padding:4px;
+    border-radius:6px;
+}
+</style>
+</head>
+<body>
+
+<div id="reportArea">
+
+<div class="header">
+    <h1>SHIFT WISE TRACKING REPORT SUMMARY</h1>
+    <div class="sub-info" id="currentInfo"></div>
+</div>
+
+<div class="controls" id="controlPanel">
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <button onclick="downloadJPG()">Save as JPG</button>
+</div>
+
+<div class="grid" id="output"></div>
+
+</div>
+
+<script>
+
+// AUTO DATE + SHIFT
+function getShift(){
+    let hour = new Date().getHours();
+    if(hour >= 6 && hour < 14) return "A";
+    if(hour >= 14 && hour < 22) return "B";
+    return "C";
+}
+
+function formatDate(date){
+    return date.toLocaleDateString('en-GB');
+}
+
+document.getElementById("currentInfo").innerHTML =
+    `Date: ${formatDate(new Date())} | Shift: ${getShift()}`;
+
+
+// FILE READ
+document.getElementById('fileInput').addEventListener('change', function(e) {
+
+    const file = e.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(event) {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, {raw:false});
+        generateReport(json);
+    };
+
+    reader.readAsArrayBuffer(file);
+});
+
+
+// GENERATE REPORT
+function generateReport(data){
+
+    let grouped = {};
+
+    data.forEach(row=>{
+        let tripDate = row["Trip Date"];
+        if(!tripDate) return;
+
+        tripDate = tripDate.toString().trim();
+
+        if(!grouped[tripDate]){
+            grouped[tripDate] = [];
+        }
+
+        grouped[tripDate].push(row);
+    });
+
+    let output = document.getElementById("output");
+    output.innerHTML = "";
+
+    Object.keys(grouped).forEach(date=>{
+
+        let rows = grouped[date];
+        let remarksCount = {};
+
+        rows.forEach(row=>{
+            let remarks = row["REMARKS"] 
+                ? row["REMARKS"].toString().trim() 
+                : "BLANK";
+
+            remarksCount[remarks] = (remarksCount[remarks] || 0) + 1;
+        });
+
+        let box = document.createElement("div");
+        box.className = "date-box";
+
+        let remarksLines = Object.entries(remarksCount)
+            .sort((a,b)=>b[1]-a[1])
+            .map(([remark,count])=>{
+                if(remark.toUpperCase().includes("BREAKDOWN")){
+                    return `<div class="line breakdown">${remark} - ${count}</div>`;
+                }
+                return `<div class="line">${remark} - ${count}</div>`;
+            })
+            .join("");
+
+        box.innerHTML = `
+            <div class="date-title">Trip Date - ${date}</div>
+            <div class="total">TOTAL TRANSIT - ${rows.length}</div>
+            ${remarksLines}
+        `;
+
+        output.appendChild(box);
+    });
+}
+
+
+// EXPORT JPG (Exact Same View)
+function downloadJPG(){
+
+    let controls = document.getElementById("controlPanel");
+    controls.style.display = "none";
+
+    html2canvas(document.body, {
+        scale:3,
+        useCORS:true,
+        backgroundColor:null,
+        scrollX:0,
+        scrollY:0
+    }).then(canvas=>{
+
+        let link = document.createElement("a");
+        link.download = "Shift_Report.jpg";
+        link.href = canvas.toDataURL("image/jpeg", 1.0);
+        link.click();
+
+        controls.style.display = "block";
+    });
+}
+
+</script>
+
+</body>
+</html>
